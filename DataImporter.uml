@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>JAVA</ID>
+  <OriginalElement>com.wt.payment.reconciliation.definitions.DataImporter</OriginalElement>
+  <nodes>
+    <node x="735.0" y="593.0">com.wt.payment.reconciliation.definitions.DataImporter</node>
+    <node x="782.0" y="196.0">com.wt.payment.reconciliation.task.executor.DistributionTaskExecutor</node>
+    <node x="0.0" y="696.0">com.wt.payment.reconciliation.task.dispatcher.DistributionTaskDispatcher</node>
+    <node x="0.0" y="103.0">com.wt.payment.reconciliation.importer.DistributionDataImporterExecutor</node>
+    <node x="472.0" y="183.0">com.wt.payment.reconciliation.definitions.ReconciliationProcess</node>
+    <node x="505.0" y="80.0">java.util.concurrent.Callable</node>
+    <node x="799.0" y="0.0">com.wt.payment.reconciliation.definitions.ReconciliationTaskExecutor</node>
+    <node x="299.0" y="1025.0">com.wt.payment.reconciliation.definitions.UnitPostProcessor</node>
+    <node x="480.0" y="0.0">java.lang.FunctionalInterface</node>
+    <node x="109.5" y="593.0">com.wt.payment.reconciliation.definitions.ReconciliationTaskDispatcher</node>
+    <node x="481.0" y="593.0">com.wt.payment.reconciliation.definitions.ReconciliationUnit</node>
+    <node x="65.0" y="0.0">com.wt.payment.reconciliation.definitions.DataImporterExecutor</node>
+    <node x="0.0" y="1025.0">com.wt.payment.reconciliation.definitions.ProcessPostProcessor</node>
+    <node x="380.0" y="263.0">com.wt.payment.reconciliation.process.SynchronizedReconciliationProcess</node>
+  </nodes>
+  <notes />
+  <edges>
+    <edge source="com.wt.payment.reconciliation.task.dispatcher.DistributionTaskDispatcher" target="com.wt.payment.reconciliation.definitions.ReconciliationTaskDispatcher">
+      <point x="0.0" y="-142.0" />
+      <point x="0.0" y="26.5" />
+    </edge>
+    <edge source="java.util.concurrent.Callable" target="java.lang.FunctionalInterface">
+      <point x="0.0" y="-26.5" />
+      <point x="0.0" y="15.0" />
+    </edge>
+    <edge source="com.wt.payment.reconciliation.importer.DistributionDataImporterExecutor" target="com.wt.payment.reconciliation.definitions.DataImporterExecutor">
+      <point x="0.0" y="-222.5" />
+      <point x="0.0" y="26.5" />
+    </edge>
+    <edge source="com.wt.payment.reconciliation.process.SynchronizedReconciliationProcess" target="com.wt.payment.reconciliation.definitions.ReconciliationProcess">
+      <point x="0.0" y="-96.5" />
+      <point x="0.0" y="15.0" />
+    </edge>
+    <edge source="com.wt.payment.reconciliation.definitions.ReconciliationProcess" target="java.util.concurrent.Callable">
+      <point x="0.0" y="-15.0" />
+      <point x="0.0" y="26.5" />
+    </edge>
+    <edge source="com.wt.payment.reconciliation.task.executor.DistributionTaskExecutor" target="com.wt.payment.reconciliation.definitions.ReconciliationTaskExecutor">
+      <point x="0.0" y="-119.5" />
+      <point x="0.0" y="73.0" />
+    </edge>
+  </edges>
+  <settings layout="Hierarchic Group" zoom="1.0" x="366.0" y="663.0" />
+  <SelectedNodes>
+    <node>com.wt.payment.reconciliation.task.dispatcher.DistributionTaskDispatcher</node>
+  </SelectedNodes>
+  <Categories>
+    <Category>Fields</Category>
+    <Category>Constructors</Category>
+    <Category>Methods</Category>
+    <Category>Properties</Category>
+    <Category>Inner Classes</Category>
+  </Categories>
+  <SCOPE>All</SCOPE>
+  <VISIBILITY>private</VISIBILITY>
+</Diagram>
+
