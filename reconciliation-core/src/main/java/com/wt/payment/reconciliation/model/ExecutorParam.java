@@ -1,5 +1,7 @@
 package com.wt.payment.reconciliation.model;
 
+import java.util.Date;
+
 /**
  * 执行器参数
  */
@@ -37,6 +39,10 @@ public class ExecutorParam {
      * 任务size
      */
     private int taskSize;
+    /**
+     * 心跳时间
+     */
+    private Date heartBeatTime;
 
     public String getOperateNo() {
         return operateNo;
@@ -100,5 +106,13 @@ public class ExecutorParam {
 
     public void setTaskSize(int taskSize) {
         this.taskSize = taskSize;
+    }
+
+    public Date getHeartBeatTime() {
+        return heartBeatTime;
+    }
+
+    public void setHeartBeatTime(Date heartBeatTime) {
+        this.heartBeatTime = heartBeatTime;
     }
 }

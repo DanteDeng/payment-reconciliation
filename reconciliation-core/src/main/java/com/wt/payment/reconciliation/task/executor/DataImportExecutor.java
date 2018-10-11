@@ -8,7 +8,6 @@ import com.wt.payment.reconciliation.model.ExecutorParam;
 import com.wt.payment.reconciliation.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +18,6 @@ import java.util.concurrent.Future;
 /**
  * 数据导入（对账操作前置处理，包括：数据分组、聚合、打包、格式化等）
  */
-@Component
 public class DataImportExecutor extends BaseDistributionExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(DataImportExecutor.class);
@@ -35,13 +33,12 @@ public class DataImportExecutor extends BaseDistributionExecutor {
      */
     @Override
     protected void initExecutorParam(String dataTypeNo) {
-        String machineIp = IpUtil.getLocalHostLANAddress(); // 获得注册机器编号
-        String machineMapKey = RedisKeyUtil.getMachineMap();    // 机器编号key
-        // 计算本次需要处理的任务编号
-        String operateLockKey = DistributionTaskKey.IMPORT_TASK_NO_LOCK;
-        String taskNoKey = RedisKeyUtil.getImportDataIndex(dataTypeNo);
-        String maxExecuteTimeKey = RedisKeyUtil.getImportDataTaskMaxExecute(dataTypeNo);
-        String handlingTaskMapKey = RedisKeyUtil.getImportDataHandlingTaskMap();
+        String machineIp = IpUtil.getLocalHostLANAddress();                                 // 获得注册机器编号
+        String machineMapKey = CacheKeyUtil.getMachineMap();                                // 机器编号key
+        String operateLockKey = DistributionTaskKey.IMPORT_TASK_NO_LOCK;                    // 导入数据任务锁key
+        String taskNoKey = CacheKeyUtil.getImportDataIndex(dataTypeNo);                     // 导入数据任务编号key
+        String maxExecuteTimeKey = CacheKeyUtil.getImportDataTaskMaxExecute(dataTypeNo);    // 任务最大执行时间key
+        String handlingTaskMapKey = CacheKeyUtil.getImportDataHandlingTaskMap();            // 处理中任务map的key
         executorParam = new ExecutorParam();
         executorParam.setOperateNo(dataTypeNo);
         executorParam.setMachineIp(machineIp);
@@ -79,14 +76,11 @@ public class DataImportExecutor extends BaseDistributionExecutor {
     @Override
     public int calculateDataTotal() {
         String dataTypeNo = executorParam.getOperateNo();
-        String dataImportTotalKey = RedisKeyUtil.getDataImportTotal(dataTypeNo);
+        String dataImportTotalKey = CacheKeyUtil.getDataImportTotal(dataTypeNo);
         String lockKey = DistributionTaskKey.IMPORT_TASK_TOTAL_LOCK;
-        return DistributionExecuteUtil.synchronizeExecute(lockKey, 1, () -> RedisUtil.getInt(dataImportTotalKey), () -> {
-            Integer total = RedisUtil.getInt(dataImportTotalKey);
-            if (total == null) {
-                total = dataImporter.getSourceDataTotal(dataTypeNo); // 获取源数据数量
-                RedisUtil.setInt(dataImportTotalKey, total);
-            }
+        return DistributionExecuteUtil.synchronizeExecute(lockKey, 1, () -> CacheUtil.getInt(dataImportTotalKey), () -> {
+            Integer total = dataImporter.getSourceDataTotal(dataTypeNo); // 获取源数据数量
+            CacheUtil.setInt(dataImportTotalKey, total);
             return total;
         });
     }
@@ -118,7 +112,7 @@ public class DataImportExecutor extends BaseDistributionExecutor {
             }
         }
 
-        RedisUtil.setHashAll(RedisKeyUtil.getImportedDataMap(dataTypeNo), processedMap);    // 数据加入到缓存
+        CacheUtil.setHashAll(CacheKeyUtil.getImportedDataMap(dataTypeNo), processedMap);    // 数据加入到缓存
     }
 
     /**
@@ -127,6 +121,6 @@ public class DataImportExecutor extends BaseDistributionExecutor {
      * @return 已处理数据数量
      */
     public Long getHandledDataCount(String dataTypeNo) {
-        return RedisUtil.getMapSize(RedisKeyUtil.getImportedDataMap(dataTypeNo));
+        return CacheUtil.getMapSize(CacheKeyUtil.getImportedDataMap(dataTypeNo));
     }
 }

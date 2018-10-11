@@ -8,7 +8,7 @@ import java.util.Date;
 /**
  * redis key 处理工具
  */
-public class RedisKeyUtil {
+public class CacheKeyUtil {
 
     private static final String KEY_SEPARATOR = ":";
 

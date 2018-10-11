@@ -1,12 +1,12 @@
 package com.wt.payment.reconciliation.process;
 
-import com.wt.payment.reconciliation.definitions.DataCheckProcess;
 import com.wt.payment.reconciliation.definitions.DataCheckNode;
+import com.wt.payment.reconciliation.definitions.DataCheckProcess;
 import com.wt.payment.reconciliation.model.DataCheckParam;
 import com.wt.payment.reconciliation.model.NodeParam;
 import com.wt.payment.reconciliation.utils.ReconciliationAssembler;
-import com.wt.payment.reconciliation.utils.RedisKeyUtil;
-import com.wt.payment.reconciliation.utils.RedisUtil;
+import com.wt.payment.reconciliation.utils.CacheKeyUtil;
+import com.wt.payment.reconciliation.utils.CacheUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +50,7 @@ public class SynchronizedDataCheckProcess implements DataCheckProcess<Void> {
      */
     @Override
     public Void call() {
-        boolean lock = RedisUtil.lock(key, 300L);// 锁定数据，幂等处理
+        boolean lock = CacheUtil.lock(key, 300L);// 锁定数据，幂等处理
         if (!lock) {
             LOG.error(String.format("reconciliation process lock failed process NO = %s key = %s", processNo, key));
             return null;
@@ -62,9 +62,9 @@ public class SynchronizedDataCheckProcess implements DataCheckProcess<Void> {
             for (DataCheckNode node : nodes) {
                 nodeNo++;
                 // 获取比对方数据
-                DataCheckParam aSide = (DataCheckParam) RedisUtil.getHash(RedisKeyUtil.getImportedDataMap(node.getASideDataTypeNo()), key);
+                DataCheckParam aSide = (DataCheckParam) CacheUtil.getHash(CacheKeyUtil.getImportedDataMap(node.getASideDataTypeNo()), key);
                 // 获取被比对方数据
-                DataCheckParam bSide = (DataCheckParam) RedisUtil.getHash(RedisKeyUtil.getImportedDataMap(node.getBSideDataTypeNo()), key);
+                DataCheckParam bSide = (DataCheckParam) CacheUtil.getHash(CacheKeyUtil.getImportedDataMap(node.getBSideDataTypeNo()), key);
                 // 创建一个对账单元共享的参数对象
                 NodeParam param = new NodeParam();
                 param.setKey(key);
@@ -82,16 +82,16 @@ public class SynchronizedDataCheckProcess implements DataCheckProcess<Void> {
                 bSide.setNodeNo(nodeNo);
                 aSide.setCheckResult(param.getCheckResult());
                 bSide.setCheckResult(param.getCheckResult());
-                RedisUtil.setHash(RedisKeyUtil.getImportedDataMap(node.getASideDataTypeNo()), key, aSide);
-                RedisUtil.setHash(RedisKeyUtil.getImportedDataMap(node.getBSideDataTypeNo()), key, bSide);
+                CacheUtil.setHash(CacheKeyUtil.getImportedDataMap(node.getASideDataTypeNo()), key, aSide);
+                CacheUtil.setHash(CacheKeyUtil.getImportedDataMap(node.getBSideDataTypeNo()), key, bSide);
             }
             // 已处理任务数据总数+1
-            RedisUtil.incrementAndGet(RedisKeyUtil.getReconciliationDataHandled(processNo), 1);
+            CacheUtil.incrementAndGet(CacheKeyUtil.getReconciliationDataHandled(processNo), 1);
         } catch (Exception e) {
             // TODO 异常情况处理，异常数据使用补偿机制来做处理，概率性异常均认为是可以通过再次处理而做到修复的目的，但是如果多次处理无果，则进入异常池等待人工处理，这种情况仅限于最底层的异常数据
             LOG.error(String.format("reconciliation process error process NO = %s key = %s", processNo, key), e);
         } finally {
-            RedisUtil.unlock(key);  // 释放锁
+            CacheUtil.unlock(key);  // 释放锁
         }
         return null;
     }

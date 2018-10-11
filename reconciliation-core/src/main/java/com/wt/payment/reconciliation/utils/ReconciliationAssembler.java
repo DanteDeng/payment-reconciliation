@@ -1,5 +1,6 @@
 package com.wt.payment.reconciliation.utils;
 
+import com.wt.payment.reconciliation.definitions.BeanManager;
 import com.wt.payment.reconciliation.definitions.DataCheckNode;
 import com.wt.payment.reconciliation.definitions.DataImporter;
 import com.wt.payment.reconciliation.model.NodeInfo;
@@ -18,14 +19,24 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class ReconciliationAssembler {
 
+    private static BeanManager beanManager;
+
     /**
      * 对账过程与处理单元映射关系map
      */
     private static final Map<String, List<DataCheckNode>> unitsMap = new HashMap<>();
     /**
+     * 数据类型与数据导入器映射map
+     */
+    private static Map<String, ProcessInfo> processNoMapProcessInfo;
+    /**
      * 对账数据导入器map
      */
     private static final Map<String, DataImporter> importerMap = new HashMap<>();
+    /**
+     * 数据类型与数据导入器映射map
+     */
+    private static Map<String, String> dataMapImporter;
     /**
      * 读写锁
      */
@@ -35,52 +46,47 @@ public class ReconciliationAssembler {
      */
     private static final ReadWriteLock importerLock = new ReentrantReadWriteLock();
 
+    public static BeanManager getBeanManager() {
+        if (beanManager == null) {
+            throw new NullPointerException("please init bean manager first");
+        }
+        return beanManager;
+    }
+
+    public static void setBeanManager(BeanManager beanManager) {
+        ReconciliationAssembler.beanManager = beanManager;
+    }
+
+    public static Map<String, ProcessInfo> getProcessNoMapProcessInfo() {
+        if (beanManager == null) {
+            throw new NullPointerException("please init bean manager first");
+        }
+        return processNoMapProcessInfo;
+    }
+
+    public static void setProcessNoMapProcessInfo(Map<String, ProcessInfo> processNoMapProcessInfo) {
+        ReconciliationAssembler.processNoMapProcessInfo = processNoMapProcessInfo;
+    }
+
+    public static Map<String, String> getDataMapImporter() {
+        return dataMapImporter;
+    }
+
+    public static void setDataMapImporter(Map<String, String> dataMapImporter) {
+        ReconciliationAssembler.dataMapImporter = dataMapImporter;
+    }
+
     /**
      * 根据过程编号组装对账过程
      * @param processNo 过程编号
      * @return 过程信息
      */
-    public static ProcessInfo assembleProcessInfoByProcessNo(String processNo) {
-        ProcessInfo processInfo = new ProcessInfo();
-        processInfo.setProcessNo("001");
-        // TODO 查库或者从配置读取信息
-        NodeInfo unitInfo1 = new NodeInfo();
-        unitInfo1.setUnitNo("001");
-        unitInfo1.setASideDataTypeNo("001");
-        unitInfo1.setBSideDataTypeNo("002");
-        NodeInfo unitInfo2 = new NodeInfo();
-        unitInfo2.setUnitNo("002");
-        unitInfo2.setASideDataTypeNo("001");
-        unitInfo2.setBSideDataTypeNo("002");
-        NodeInfo unitInfo3 = new NodeInfo();
-        unitInfo3.setUnitNo("003");
-        unitInfo3.setASideDataTypeNo("001");
-        unitInfo3.setBSideDataTypeNo("003");
-        NodeInfo unitInfo4 = new NodeInfo();
-        unitInfo4.setUnitNo("004");
-        unitInfo4.setASideDataTypeNo("001");
-        unitInfo4.setBSideDataTypeNo("004");
-        List<NodeInfo> units = new ArrayList<>();
-        units.add(unitInfo1);
-        units.add(unitInfo2);
-        units.add(unitInfo3);
-        units.add(unitInfo4);
-        processInfo.setNodes(units);
-        List<String> unitNos = new ArrayList<>();
-        List<String> dataTypeNos = new ArrayList<>();
-        processInfo.setNodeNos(unitNos);
-        processInfo.setDataTypeNos(dataTypeNos);
-        for (NodeInfo unit : units) {
-            unitNos.add(unit.getUnitNo());
-            String aSideDataTypeNo = unit.getASideDataTypeNo();
-            if (!dataTypeNos.contains(aSideDataTypeNo)) {
-                dataTypeNos.add(aSideDataTypeNo);
-            }
-            String bSideDataTypeNo = unit.getBSideDataTypeNo();
-            if (!dataTypeNos.contains(bSideDataTypeNo)) {
-                dataTypeNos.add(bSideDataTypeNo);
-            }
+    public static ProcessInfo getProcessInfoByProcessNo(String processNo) {
+        ProcessInfo processInfo = getProcessNoMapProcessInfo().get(processNo);
+        if (processInfo == null) {
+            throw new RuntimeException(String.format("there is no process info mapped by process NO %s", processNo));
         }
+
         return processInfo;
     }
 
@@ -97,12 +103,12 @@ public class ReconciliationAssembler {
             Lock writeLock = processLock.writeLock();
             writeLock.lock();
             try {
-                ProcessInfo processInfo = assembleProcessInfoByProcessNo(processNo);
+                ProcessInfo processInfo = getProcessInfoByProcessNo(processNo);
                 if (processInfo != null) {
                     reconciliationUnits = new ArrayList<>();
                     List<NodeInfo> units = processInfo.getNodes();
                     for (NodeInfo unit : units) { // 根据单元编号找到相应的操作单元实例进行实例获取
-                        DataCheckNode bean = SpringContextUtil.getBean("reconciliationUnit" + unit.getUnitNo(), DataCheckNode.class);
+                        DataCheckNode bean = getBeanManager().getBean(unit.getUnitNo(), DataCheckNode.class);
                         // 对账数据类型编号设置
                         bean.setASideDataTypeNo(unit.getASideDataTypeNo());
                         bean.setBSideDataTypeNo(unit.getBSideDataTypeNo());
@@ -130,7 +136,12 @@ public class ReconciliationAssembler {
             Lock writeLock = importerLock.writeLock();
             writeLock.lock();
             try {
-                dataImporter = SpringContextUtil.getBean("dataImporter" + dataTypeNo, DataImporter.class);
+                String importerNo = getDataMapImporter().get(dataTypeNo);
+                if (importerNo == null || importerNo.isEmpty()) {
+                    throw new RuntimeException(String.format("there is no importer no mapped by data type NO %s", dataTypeNo));
+                }
+                dataImporter = getBeanManager().getBean(importerNo, DataImporter.class);   // 若是找不到相关的bean，spring容器会抛出异常
+
                 importerMap.put(dataTypeNo, dataImporter);   //dataImporter存放至map
             } finally {
                 writeLock.unlock();

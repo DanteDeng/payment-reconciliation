@@ -1,6 +1,7 @@
-package com.wt.payment.reconciliation.utils;
+package com.wt.payment.reconciliation.cacheoperator;
 
 import com.google.gson.Gson;
+import com.wt.payment.reconciliation.definitions.CacheOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.*;
@@ -15,31 +16,31 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Component
-public class RedisUtil {
+public class RedisOperator implements CacheOperator {
     /**
      * redis操作模板
      */
-    private static RedisTemplate<String, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
     /**
      * redis value操作模板实例
      */
-    private static ValueOperations<String, String> valueOperations;
+    private ValueOperations<String, String> valueOperations;
     /**
      * redis hash操作模板实例
      */
-    private static HashOperations<String, String, Object> hashOperations;
+    private HashOperations<String, String, Object> hashOperations;
     /**
      * redis list操作模板实例
      */
-    private static ListOperations<String, Object> listOperations;
+    private ListOperations<String, Object> listOperations;
     /**
      * redis set操作模板实例
      */
-    private static SetOperations<String, Object> setOperations;
+    private SetOperations<String, Object> setOperations;
     /**
      * redis ZSet操作模板实例
      */
-    private static ZSetOperations<String, Object> zSetOperations;
+    private ZSetOperations<String, Object> zSetOperations;
     /**
      * 默认过期时长，单位：秒
      */
@@ -67,15 +68,15 @@ public class RedisUtil {
      * @param zSetOperations  ZSet操作模板实例
      */
     @Autowired
-    private RedisUtil(RedisTemplate<String, Object> redisTemplate, ValueOperations<String, String> valueOperations,
-                      HashOperations<String, String, Object> hashOperations, ListOperations<String, Object> listOperations,
-                      SetOperations<String, Object> setOperations, ZSetOperations<String, Object> zSetOperations) {
-        RedisUtil.redisTemplate = redisTemplate;
-        RedisUtil.valueOperations = valueOperations;
-        RedisUtil.hashOperations = hashOperations;
-        RedisUtil.listOperations = listOperations;
-        RedisUtil.setOperations = setOperations;
-        RedisUtil.zSetOperations = zSetOperations;
+    private RedisOperator(RedisTemplate<String, Object> redisTemplate, ValueOperations<String, String> valueOperations,
+                          HashOperations<String, String, Object> hashOperations, ListOperations<String, Object> listOperations,
+                          SetOperations<String, Object> setOperations, ZSetOperations<String, Object> zSetOperations) {
+        this.redisTemplate = redisTemplate;
+        this.valueOperations = valueOperations;
+        this.hashOperations = hashOperations;
+        this.listOperations = listOperations;
+        this.setOperations = setOperations;
+        this.zSetOperations = zSetOperations;
     }
 
     /**
@@ -84,7 +85,7 @@ public class RedisUtil {
      * @param value  值
      * @param expire 过期时间
      */
-    public static void set(String key, Object value, Long expire) {
+    public void set(String key, Object value, Long expire) {
         valueOperations.set(key, toJson(value));
         if (expire != null) {
             redisTemplate.expire(key, expire, TimeUnit.SECONDS);
@@ -96,7 +97,7 @@ public class RedisUtil {
      * @param key   键
      * @param value 值
      */
-    public static void set(String key, Object value) {
+    public void set(String key, Object value) {
         set(key, value, DEFAULT_EXPIRE);
     }
 
@@ -108,7 +109,7 @@ public class RedisUtil {
      * @param <T>    类型
      * @return value
      */
-    public static <T> T get(String key, Class<T> clazz, Long expire) {
+    public <T> T get(String key, Class<T> clazz, Long expire) {
         String value = valueOperations.get(key);
         if (expire != null) {
             redisTemplate.expire(key, expire, TimeUnit.SECONDS);
@@ -123,7 +124,7 @@ public class RedisUtil {
      * @param <T>   类型
      * @return value
      */
-    public static <T> T get(String key, Class<T> clazz) {
+    public <T> T get(String key, Class<T> clazz) {
         return get(key, clazz, NOT_EXPIRE);
     }
 
@@ -133,7 +134,7 @@ public class RedisUtil {
      * @param expire 过期时间
      * @return value
      */
-    public static String get(String key, Long expire) {
+    public String get(String key, Long expire) {
         String value = valueOperations.get(key);
         if (expire != null) {
             redisTemplate.expire(key, expire, TimeUnit.SECONDS);
@@ -146,7 +147,7 @@ public class RedisUtil {
      * @param key 键
      * @return value
      */
-    public static String get(String key) {
+    public String get(String key) {
         return get(key, (Long) null);
     }
 
@@ -154,7 +155,7 @@ public class RedisUtil {
      * 删除key
      * @param key 键
      */
-    public static boolean delete(String key) {
+    public boolean delete(String key) {
         boolean deleted = false;
         Boolean delete = redisTemplate.delete(key);
         if (delete != null && delete) {
@@ -168,7 +169,7 @@ public class RedisUtil {
      * @param key 锁定的key
      * @return 锁定结果
      */
-    public static boolean lock(String key, Long expire) {
+    public boolean lock(String key, Long expire) {
         boolean locked = false;
         BoundValueOperations<String, Object> boundValueOps = redisTemplate.boundValueOps(key);
         Boolean ifAbsent = boundValueOps.setIfAbsent(LOCK_VALUE);
@@ -187,7 +188,7 @@ public class RedisUtil {
      * @param key 锁定的key
      * @return 结果结果
      */
-    public static boolean unlock(String key) {
+    public boolean unlock(String key) {
         return delete(key);
     }
 
@@ -196,7 +197,7 @@ public class RedisUtil {
      * @param key   键
      * @param value 值
      */
-    public static void setInt(String key, int value) {
+    public void setInt(String key, int value) {
         setInt(key, value, null);
     }
 
@@ -206,7 +207,7 @@ public class RedisUtil {
      * @param value  值
      * @param expire 过期时间
      */
-    public static void setInt(String key, int value, Long expire) {
+    public void setInt(String key, int value, Long expire) {
         set(key, value, expire);
     }
 
@@ -215,7 +216,7 @@ public class RedisUtil {
      * @param key 键
      * @return 值
      */
-    public static Integer getInt(String key) {
+    public Integer getInt(String key) {
         return getInt(key, null);
     }
 
@@ -225,7 +226,7 @@ public class RedisUtil {
      * @param expire 过期时间
      * @return 值
      */
-    public static Integer getInt(String key, Long expire) {
+    public Integer getInt(String key, Long expire) {
         return get(key, Integer.class, expire);
     }
 
@@ -234,7 +235,7 @@ public class RedisUtil {
      * @param key   键
      * @param value 值
      */
-    public static void setLong(String key, long value) {
+    public void setLong(String key, long value) {
         setLong(key, value, null);
     }
 
@@ -244,7 +245,7 @@ public class RedisUtil {
      * @param value  值
      * @param expire 过期时间
      */
-    public static void setLong(String key, long value, Long expire) {
+    public void setLong(String key, long value, Long expire) {
         set(key, value, expire);
     }
 
@@ -253,7 +254,7 @@ public class RedisUtil {
      * @param key 键
      * @return 值
      */
-    public static Long getLong(String key) {
+    public Long getLong(String key) {
         return getLong(key, null);
     }
 
@@ -263,7 +264,7 @@ public class RedisUtil {
      * @param expire 过期时间
      * @return 值
      */
-    public static Long getLong(String key, Long expire) {
+    public Long getLong(String key, Long expire) {
         return get(key, Long.class, expire);
     }
 
@@ -273,7 +274,7 @@ public class RedisUtil {
      * @param size 增长值
      * @return 值
      */
-    public static Integer incrementAndGet(String key, int size) {
+    public Integer incrementAndGet(String key, int size) {
 
         return incrementAndGet(key, size, null);
     }
@@ -285,7 +286,7 @@ public class RedisUtil {
      * @param expire 过期时间
      * @return 值
      */
-    public static Integer incrementAndGet(String key, int size, Long expire) {
+    public Integer incrementAndGet(String key, int size, Long expire) {
         Long result = valueOperations.increment(key, size);
         if (result != null && expire != null) {
             redisTemplate.expire(key, expire, TimeUnit.SECONDS);
@@ -299,7 +300,7 @@ public class RedisUtil {
      * @param size 增长值
      * @return 值
      */
-    public static Integer decrementAndGet(String key, int size) {
+    public Integer decrementAndGet(String key, int size) {
         return decrementAndGet(key, size, null);
     }
 
@@ -310,7 +311,7 @@ public class RedisUtil {
      * @param expire 过期时间
      * @return 值
      */
-    public static Integer decrementAndGet(String key, int size, Long expire) {
+    public Integer decrementAndGet(String key, int size, Long expire) {
         return incrementAndGet(key, -size, expire);
     }
 
@@ -320,7 +321,7 @@ public class RedisUtil {
      * @param hashKey map中的键
      * @param value   map中的值
      */
-    public static <V> void setHash(String key, String hashKey, V value) {
+    public <V> void setHash(String key, String hashKey, V value) {
         hashOperations.put(key, hashKey, value);
     }
 
@@ -329,7 +330,7 @@ public class RedisUtil {
      * @param key 键
      * @param map map
      */
-    public static <T> void setHashAll(String key, Map<String, T> map) {
+    public <T> void setHashAll(String key, Map<String, T> map) {
         hashOperations.putAll(key, map);
     }
 
@@ -339,7 +340,7 @@ public class RedisUtil {
      * @param hashKey map中的键
      * @return 结果
      */
-    public static boolean removeHash(String key, String hashKey) {
+    public boolean removeHash(String key, String hashKey) {
         boolean deleted = false;
         Long delete = hashOperations.delete(key, hashKey);
         if (delete == 1) {
@@ -354,7 +355,7 @@ public class RedisUtil {
      * @param hashKey map中的键
      * @return map中的值
      */
-    public static Object getHash(String key, String hashKey) {
+    public Object getHash(String key, String hashKey) {
         return hashOperations.get(key, hashKey);
     }
 
@@ -363,7 +364,7 @@ public class RedisUtil {
      * @param key 键
      * @return map
      */
-    public static Map<String, Object> getMap(String key) {
+    public Map<String, Object> getMap(String key) {
         return hashOperations.entries(key);
     }
 
@@ -372,7 +373,7 @@ public class RedisUtil {
      * @param key 键
      * @return set
      */
-    public static Set<String> getMapKeys(String key) {
+    public Set<String> getMapKeys(String key) {
         return hashOperations.keys(key);
     }
 
@@ -381,7 +382,7 @@ public class RedisUtil {
      * @param key 键
      * @return list
      */
-    public static List<Object> getMapValues(String key) {
+    public List<Object> getMapValues(String key) {
         return hashOperations.values(key);
     }
 
@@ -390,7 +391,7 @@ public class RedisUtil {
      * @param key 键
      * @return map size
      */
-    public static Long getMapSize(String key) {
+    public Long getMapSize(String key) {
         return hashOperations.size(key);
     }
 
@@ -400,7 +401,7 @@ public class RedisUtil {
      * @param value 值
      * @return 添加是否成功
      */
-    public static <V> boolean addToSet(String key, V value) {
+    public <V> boolean addToSet(String key, V value) {
         boolean added = false;
         Long add = setOperations.add(key, value);
         if (add != null && add == 1) {
@@ -414,7 +415,7 @@ public class RedisUtil {
      * @param key 键
      * @return set
      */
-    public static Set<Object> getSet(String key) {
+    public Set<Object> getSet(String key) {
         return setOperations.members(key);
     }
 
@@ -423,7 +424,7 @@ public class RedisUtil {
      * @param key 键
      * @return size
      */
-    public static Long getSetSize(String key) {
+    public Long getSetSize(String key) {
         return setOperations.size(key);
     }
 
@@ -433,7 +434,7 @@ public class RedisUtil {
      * @param value 值
      * @return 添加是否成功
      */
-    public static <V> boolean addToList(String key, V value) {
+    public <V> boolean addToList(String key, V value) {
         boolean added = false;
         Long add = listOperations.leftPush(key, value);
         if (add != null && add == 1) {
@@ -448,7 +449,7 @@ public class RedisUtil {
      * @param values 值集合
      * @return 添加是否成功
      */
-    public static boolean addAllToList(String key, Collection<Object> values) {
+    public boolean addAllToList(String key, Collection<Object> values) {
         boolean added = false;
         Long add = listOperations.leftPushAll(key, values);
         if (add != null && add > 0) {
@@ -463,7 +464,7 @@ public class RedisUtil {
      * @param start 起始位置
      * @return 子集
      */
-    public static List<Object> subList(String key, int start, int end) {
+    public List<Object> subList(String key, int start, int end) {
         return listOperations.range(key, start, end - 1);
     }
 
@@ -472,7 +473,7 @@ public class RedisUtil {
      * @param key 键
      * @return 子集
      */
-    public static List<Object> getList(String key) {
+    public List<Object> getList(String key) {
         return listOperations.range(key, 0, -1);
     }
 
@@ -481,7 +482,7 @@ public class RedisUtil {
      * @param key 键
      * @return list大小
      */
-    public static Long getListSize(String key) {
+    public Long getListSize(String key) {
         return listOperations.size(key);
     }
 
@@ -494,7 +495,7 @@ public class RedisUtil {
      * @param <T>        返回类型
      * @return 结果
      */
-    public static <T> T executeLuaScript(String scriptName, Class<T> tClass, List<String> keys, Object... args) {
+    public <T> T executeLuaScript(String scriptName, Class<T> tClass, List<String> keys, Object... args) {
         DefaultRedisScript<T> script = new DefaultRedisScript<>();
         script.setResultType(tClass);
         script.setScriptSource(new ResourceScriptSource(new ClassPathResource("/luascript/" + scriptName + ".lua")));
@@ -504,7 +505,7 @@ public class RedisUtil {
     /**
      * Object转成JSON数据
      */
-    private static String toJson(Object object) {
+    private String toJson(Object object) {
         if (object instanceof Integer || object instanceof Long || object instanceof Float ||
                 object instanceof Double || object instanceof Boolean || object instanceof String) {
             return String.valueOf(object);
@@ -515,7 +516,7 @@ public class RedisUtil {
     /**
      * JSON数据，转成Object
      */
-    private static <T> T fromJson(String json, Class<T> clazz) {
+    private <T> T fromJson(String json, Class<T> clazz) {
         return gson.fromJson(json, clazz);
     }
 

@@ -5,11 +5,10 @@ import com.wt.payment.reconciliation.constant.DistributionTaskKey;
 import com.wt.payment.reconciliation.model.ExecutorParam;
 import com.wt.payment.reconciliation.process.SynchronizedDataCheckProcess;
 import com.wt.payment.reconciliation.utils.IpUtil;
-import com.wt.payment.reconciliation.utils.RedisKeyUtil;
-import com.wt.payment.reconciliation.utils.RedisUtil;
+import com.wt.payment.reconciliation.utils.CacheKeyUtil;
+import com.wt.payment.reconciliation.utils.CacheUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -20,7 +19,6 @@ import java.util.concurrent.Future;
 /**
  * 分布式对账任务执行器
  */
-@Component
 public class DataCheckExecutor extends BaseDistributionExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(DataCheckExecutor.class);
@@ -31,16 +29,12 @@ public class DataCheckExecutor extends BaseDistributionExecutor {
      */
     @Override
     public void initExecutorParam(String processNo) {
-        String machineIp = IpUtil.getLocalHostLANAddress(); // 获得注册机器编号
-        LOG.info(String.format("distribution reconciliation executor machine ip %s", machineIp));
-        if (machineIp == null) {
-            throw new RuntimeException("get machine no error");
-        }
-        String machineMapKey = RedisKeyUtil.getMachineMap();    // 机器编号key
-        String handlingTaskMapKey = RedisKeyUtil.getReconciliationHandlingTaskMap();    // 处理中任务map的key
-        String maxExecuteTimeKey = RedisKeyUtil.getReconciliationTaskMaxExecute(processNo); // 任务最大执行时间key
-        String operateLockKey = DistributionTaskKey.CHECK_TASK_NO_LOCK; // 对账任务锁key
-        String taskNoKey = RedisKeyUtil.getReconciliationTaskIndex(processNo);  // 任务编号key
+        String machineIp = IpUtil.getLocalHostLANAddress();                                 // 获得注册机器编号
+        String machineMapKey = CacheKeyUtil.getMachineMap();                                // 机器编号key
+        String handlingTaskMapKey = CacheKeyUtil.getReconciliationHandlingTaskMap();        // 处理中任务map的key
+        String maxExecuteTimeKey = CacheKeyUtil.getReconciliationTaskMaxExecute(processNo); // 任务最大执行时间key
+        String operateLockKey = DistributionTaskKey.CHECK_TASK_NO_LOCK;                     // 对账任务锁key
+        String taskNoKey = CacheKeyUtil.getReconciliationTaskIndex(processNo);              // 对账任务编号key
         executorParam = new ExecutorParam();
         executorParam.setOperateNo(processNo);
         executorParam.setMachineIp(machineIp);
@@ -65,7 +59,8 @@ public class DataCheckExecutor extends BaseDistributionExecutor {
      */
     @Override
     public void sendHeartBeat() {
-        RedisUtil.setHash(executorParam.getMachineMapKey(), executorParam.getMachineIp(), new Date()); // TODO 心跳发送，监控需要使用
+        executorParam.setHeartBeatTime(new Date());     // 更新心跳发送时间，监控可以通过对该时间做宕机判断
+        CacheUtil.setHash(executorParam.getMachineMapKey(), executorParam.getMachineIp(), executorParam); // TODO 心跳发送，监控需要使用
     }
 
     /**
@@ -75,7 +70,7 @@ public class DataCheckExecutor extends BaseDistributionExecutor {
     @Override
     public int calculateDataTotal() {
 
-        Long dataTotal = RedisUtil.getListSize(RedisKeyUtil.getReconciliationKeyList(executorParam.getOperateNo()));    // 数据总数
+        Long dataTotal = CacheUtil.getListSize(CacheKeyUtil.getReconciliationKeyList(executorParam.getOperateNo()));    // 数据总数
         if (dataTotal == null) {
             throw new RuntimeException("data is not imported");
         }
@@ -97,7 +92,7 @@ public class DataCheckExecutor extends BaseDistributionExecutor {
         int start = taskNo * taskSize;
         int end = (taskNo + 1) * taskSize;
         // 2.从redis中取出所需处理的数据
-        List<Object> list = RedisUtil.subList(RedisKeyUtil.getReconciliationKeyList(processNo), start, end);
+        List<Object> list = CacheUtil.subList(CacheKeyUtil.getReconciliationKeyList(processNo), start, end);
         HashSet<String> tasks = new HashSet<>();
         for (Object obj : list) {
             if (obj instanceof String) {
@@ -127,7 +122,7 @@ public class DataCheckExecutor extends BaseDistributionExecutor {
      */
     @Override
     public Long getHandledDataCount(String processNo) {
-        return RedisUtil.getLong(RedisKeyUtil.getReconciliationDataHandled(processNo));
+        return CacheUtil.getLong(CacheKeyUtil.getReconciliationDataHandled(processNo));
     }
 
 }

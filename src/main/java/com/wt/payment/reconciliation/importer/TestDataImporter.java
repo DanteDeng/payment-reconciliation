@@ -1,12 +1,9 @@
 package com.wt.payment.reconciliation.importer;
 
 import com.wt.payment.reconciliation.constant.Constant;
-import com.wt.payment.reconciliation.constant.DistributionTaskKey;
 import com.wt.payment.reconciliation.definitions.DataImporter;
 import com.wt.payment.reconciliation.model.DataCheckParam;
-import com.wt.payment.reconciliation.utils.DistributionExecuteUtil;
-import com.wt.payment.reconciliation.utils.RedisKeyUtil;
-import com.wt.payment.reconciliation.utils.RedisUtil;
+import com.wt.payment.reconciliation.utils.CacheUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +26,7 @@ public class TestDataImporter implements DataImporter<DataCheckParam, DataCheckP
         List<DataCheckParam> list = new ArrayList<>();
         int start = batchNo * Constant.TASK_SIZE;
         int end = (batchNo + 1) * Constant.TASK_SIZE;
-        List<Object> tempList = RedisUtil.subList("aTempList", start, end);
+        List<Object> tempList = CacheUtil.subList("aTempList", start, end);
         if (tempList != null) {
             for (Object o : tempList) {
                 list.add((DataCheckParam) o);

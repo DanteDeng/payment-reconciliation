@@ -4,7 +4,7 @@ import com.wt.payment.reconciliation.constant.HandleStatus;
 import com.wt.payment.reconciliation.definitions.DistributionExecutor;
 import com.wt.payment.reconciliation.model.ExecutorParam;
 import com.wt.payment.reconciliation.utils.DistributionExecuteUtil;
-import com.wt.payment.reconciliation.utils.RedisUtil;
+import com.wt.payment.reconciliation.utils.CacheUtil;
 import com.wt.payment.reconciliation.utils.SleepUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +23,6 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(BaseDistributionExecutor.class);
     /**
-     * 执行器参数信息
-     */
-    protected ExecutorParam executorParam;
-    /**
      * 待导入数据总数
      */
     private Integer dataTotal;
@@ -39,6 +35,14 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
      */
     private int status;
     /**
+     * 读写锁
+     */
+    private ReadWriteLock lock = new ReentrantReadWriteLock();
+    /**
+     * 执行器参数信息
+     */
+    protected ExecutorParam executorParam;
+    /**
      * 线程池
      */
     protected ThreadPoolExecutor executor = new ThreadPoolExecutor(10,
@@ -46,10 +50,6 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
             1,
             TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<>());
-    /**
-     * 读写锁
-     */
-    private ReadWriteLock lock = new ReentrantReadWriteLock();
     /**
      * 分发定时处理间隔时间
      */
@@ -81,7 +81,7 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
                 sendHeartBeat();
 
                 // 开启一个新任务
-                startNewTask();
+                triggerANewTask();
 
                 LOG.info(String.format("schedule new check task end operate NO %s", operateNo));
             } catch (Exception e) {
@@ -89,15 +89,9 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
             }
         }, TASK_PERIOD, TASK_PERIOD, TimeUnit.SECONDS);
 
-        Long dataHandled = joinUntilAllDone(schedule);  // 阻塞线程直倒全部处理完成
+        Long dataHandled = joinUntilAllDone(schedule);  // 阻塞线程直到全部处理完成
         LOG.info(String.format("distribution execute end operate NO %s data handled %s", operateNo, dataHandled));
     }
-
-    /**
-     * 计算任务数据总数
-     * @return 任务数据总数
-     */
-    protected abstract int calculateDataTotal();
 
     /**
      * 计算任务总数
@@ -105,27 +99,14 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
      */
     private int calculateTaskTotal() {
         int taskSize = executorParam.getTaskSize();
+        if (taskSize <= 0) {
+            throw new RuntimeException(String.format("distribution executor param illegal %s", executorParam));
+        }
         int dataTotal = getDataTotal();
-
         int taskTotal = dataTotal / taskSize + (dataTotal % taskSize == 0 ? 0 : 1);
         LOG.info(String.format("calculate task total %s", taskTotal));
         return taskTotal;
     }
-
-    /**
-     * 初始化执行器参数
-     */
-    protected abstract void initExecutorParam(String processNo);
-
-    /**
-     * 销毁执行器参数
-     */
-    protected abstract void destroyExecutorParam();
-
-    /**
-     * 发送心跳
-     */
-    protected abstract void sendHeartBeat();
 
     /**
      * 获取执行超时任务编号
@@ -135,8 +116,8 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
      */
     private Integer getOutOfTimeTaskNo(String taskMapKey, String maxExecuteTimeKey) {
         Integer taskNo = null;
-        Map<String, Object> handlingTaskMap = RedisUtil.getMap(taskMapKey);
-        Long maxExecute = RedisUtil.get(maxExecuteTimeKey, Long.class);
+        Map<String, Object> handlingTaskMap = CacheUtil.getMap(taskMapKey);
+        Long maxExecute = CacheUtil.get(maxExecuteTimeKey, Long.class);
         long nowTime = new Date().getTime();
         for (Map.Entry<String, Object> entry : handlingTaskMap.entrySet()) {
             Date doneTime = (Date) entry.getValue();
@@ -153,9 +134,9 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
     }
 
     /**
-     * 开启新任务
+     * 触发新任务
      */
-    private void startNewTask() {
+    private void triggerANewTask() {
         String operateNo = executorParam.getOperateNo();
         String operateLockKey = executorParam.getOperateLockKey();
         String taskNoKey = executorParam.getTaskNoKey();
@@ -176,14 +157,14 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
 
                     doNewTask(operateNo, taskNo, taskSize);
 
-                    RedisUtil.removeHash(handlingTaskMapKey, String.valueOf(taskNo));   //处理完成从处理中map中移除
+                    CacheUtil.removeHash(handlingTaskMapKey, String.valueOf(taskNo));   //处理完成从处理中map中移除
                     LOG.info(String.format("new reconciliation task end process NO %s task size %s task NO %s", operateNo, taskSize, taskNo));
                     long endMillis = new Date().getTime();
                     long takes = startMillis - endMillis;
                     // 获取原有最大任务处理时间
-                    Long oldTakes = RedisUtil.get(maxExecuteTimeKey, Long.class);
+                    Long oldTakes = CacheUtil.get(maxExecuteTimeKey, Long.class);
                     if (oldTakes == null || oldTakes < takes) { // 如果本次处理时间大过已有最大处理时间或者还未设置最大处理时间则更新最大处理时间
-                        RedisUtil.set(maxExecuteTimeKey, takes);
+                        CacheUtil.set(maxExecuteTimeKey, takes);
                     }
                 } finally { // 执行完成执行器状态设置为就绪
                     setStatus(HandleStatus.INIT);
@@ -204,7 +185,7 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
     private Integer calculateTaskNo(String operateLockKey, String taskNoKey, String taskMapKey, String maxExecuteTimeKey) {
 
         return DistributionExecuteUtil.synchronizeExecute(operateLockKey, 30L, 3, () -> {
-            Integer handled = RedisUtil.getInt(taskNoKey); // 当前已处理任务数
+            Integer handled = CacheUtil.getInt(taskNoKey); // 当前已处理任务数
             //LOG.info(String.format("task no %s key %s", handled, taskNoKey));
             if (handled == null) {  // 首次获取
                 handled = 0;
@@ -213,8 +194,8 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
                 handled = getOutOfTimeTaskNo(taskMapKey, maxExecuteTimeKey);
             }
             if (handled != null) {
-                RedisUtil.setHash(taskMapKey, String.valueOf(handled), new Date()); //开始处理放置到处理中任务map中
-                RedisUtil.incrementAndGet(taskNoKey, 1);   //任务下标+1
+                CacheUtil.setHash(taskMapKey, String.valueOf(handled), new Date()); //开始处理放置到处理中任务map中
+                CacheUtil.incrementAndGet(taskNoKey, 1);   //任务下标+1
             }
             LOG.info(String.format("distribution calculate task NO end handled %s", handled));
             return handled;
@@ -222,7 +203,7 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
     }
 
     /**
-     * 阻塞线程知道全部数据处理完成
+     * 阻塞线程直到全部数据处理完成
      * @param schedule 定时器
      */
     private Long joinUntilAllDone(ExecutorService schedule) {
@@ -246,25 +227,11 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
                     }
                 }
             }
-            SleepUtil.sleepMilliSeconds(1000L);
+            SleepUtil.sleepSeconds(1L);
         }
         return handled;
     }
 
-    /**
-     * 获取当前已处理数据总量
-     * @param operateNo 过程编号
-     * @return 已处理数据数量
-     */
-    protected abstract Long getHandledDataCount(String operateNo);
-
-    /**
-     * 执行新任务的逻辑
-     * @param operateNo 执行编号
-     * @param taskNo    任务编号
-     * @param taskSize  任务size
-     */
-    protected abstract void doNewTask(String operateNo, int taskNo, int taskSize);
 
     /**
      * 设置状态
@@ -294,21 +261,72 @@ public abstract class BaseDistributionExecutor implements DistributionExecutor {
         }
     }
 
+    /**
+     * 获取任务处理数据总数
+     * @return 任务处理数据总数
+     */
     private Integer getDataTotal() {
         return dataTotal;
     }
 
+    /**
+     * 设置任务处理数据总数
+     * @param dataTotal 任务处理数据总数
+     */
     private void setDataTotal(Integer dataTotal) {
         this.dataTotal = dataTotal;
     }
 
-
+    /**
+     * 获取任务总数
+     * @return 任务总数
+     */
     private Integer getTaskTotal() {
         return taskTotal;
     }
 
+    /**
+     * 设置任务总数
+     * @param taskTotal 任务总数
+     */
     private void setTaskTotal(Integer taskTotal) {
         this.taskTotal = taskTotal;
     }
+
+    /**
+     * 计算任务数据总数
+     * @return 任务数据总数
+     */
+    protected abstract int calculateDataTotal();
+
+    /**
+     * 初始化执行器参数
+     */
+    protected abstract void initExecutorParam(String operateNo);
+
+    /**
+     * 销毁执行器参数
+     */
+    protected abstract void destroyExecutorParam();
+
+    /**
+     * 发送心跳
+     */
+    protected abstract void sendHeartBeat();
+
+    /**
+     * 获取当前已处理数据总量
+     * @param operateNo 过程编号
+     * @return 已处理数据数量
+     */
+    protected abstract Long getHandledDataCount(String operateNo);
+
+    /**
+     * 执行新任务的逻辑
+     * @param operateNo 执行编号
+     * @param taskNo    任务编号
+     * @param taskSize  任务size
+     */
+    protected abstract void doNewTask(String operateNo, int taskNo, int taskSize);
 
 }
